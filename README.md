@@ -16,22 +16,20 @@ AI-powered Google Play Store screenshot generator for Android apps. A Claude Cod
 Recommended — add the skill to Claude Code via npx:
 
 ```bash
-npx skills add <user>/play-store-screenshots
+npx skills add hardikamal/play-store-screenshots
 ```
 
 Install globally across all projects:
 
 ```bash
-npx skills add <user>/play-store-screenshots -g
+npx skills add hardikamal/play-store-screenshots -g
 ```
 
 Or clone manually:
 
 ```bash
-git clone https://github.com/<user>/play-store-screenshots.git ~/.claude/skills/play-store-screenshots
+git clone https://github.com/hardikamal/play-store-screenshots.git ~/.claude/skills/play-store-screenshots
 ```
-
-> Replace `<user>` with the GitHub account/org hosting this repo.
 
 ## Usage
 
