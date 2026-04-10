@@ -410,8 +410,65 @@ Place locale and theme selectors in the same toolbar as device + size. This turn
 
 Each screenshot is designed at full resolution (e.g. 1440×2560 for phone). Two copies exist:
 
-1. **Preview**: CSS `transform: scale()` via ResizeObserver to fit a grid card
-2. **Export**: Offscreen at `position: absolute; left: -9999px` at true resolution
+1. **Preview**: CSS `transform: scale()` via ResizeObserver to fit a grid card. **The card's aspect ratio MUST match the active device's canvas** (phone 9:16, tablet 3:4, feature graphic 1024:500). A grid that hardcodes a single aspect ratio will cause Feature Graphic previews to overlap Phone/Tablet cards the moment the device toggle changes. See "Aspect-Aware Grid" below.
+2. **Export**: Offscreen at `position: absolute; left: -9999px` at true resolution.
+
+### Aspect-Aware Grid
+
+The preview grid is the most common place end-users hit a visual bug: a Feature Graphic rendered into a card that was sized for a tall phone gets squished, bleeds into neighboring cells, or overlaps adjacent cards. Prevent it by driving the card aspect ratio and column count from the active device.
+
+```tsx
+type Device = "phone" | "tablet-7" | "tablet-10" | "feature-graphic";
+
+const CANVAS_FOR: Record<Device, { w: number; h: number; cols: number }> = {
+  "phone":            { w: 1440, h: 2560, cols: 3 },  // tall 9:16
+  "tablet-7":         { w: 1440, h: 1920, cols: 3 },  // 3:4
+  "tablet-10":        { w: 1920, h: 2560, cols: 3 },  // 3:4
+  "feature-graphic":  { w: 1024, h:  500, cols: 1 },  // wide 2:1 — one per row
+};
+
+function ScreenshotsGrid({ device, slides }: {
+  device: Device;
+  slides: React.ReactNode[];
+}) {
+  const { w: canvasW, h: canvasH, cols } = CANVAS_FOR[device];
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+        gap: 24,
+        alignItems: "start",   // don't stretch cards to fill a row
+      }}
+    >
+      {slides.map((slide, i) => (
+        <div
+          key={`${device}-${i}`}
+          style={{
+            aspectRatio: `${canvasW} / ${canvasH}`,
+            position: "relative",
+            overflow: "hidden",   // clip anything that escapes the card
+            background: "#000",
+          }}
+        >
+          <ScreenshotPreview canvasW={canvasW} canvasH={canvasH}>
+            {slide}
+          </ScreenshotPreview>
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+**Key rules:**
+
+- Card `aspectRatio` MUST come from `CANVAS_FOR[device]`, never a hardcoded `9/16` or `3/4`.
+- Feature Graphic uses `cols: 1` — at 2:1 landscape, even two-up is too wide on most viewports.
+- `alignItems: "start"` prevents CSS Grid from stretching a short row's cards to match a taller sibling when layouts mix.
+- `overflow: "hidden"` on each card clips any residual overflow from the scaled-down slide — belt-and-braces defense.
+- Key cards by `${device}-${i}` so React re-mounts cards when the device toggle flips; a stale card mid-transition is another overlap source.
+- The `ScreenshotPreview` component reads the card's rendered width via ResizeObserver and scales the offscreen full-resolution slide to fit. It does NOT need to know the device — the parent already pinned the correct aspect ratio.
 
 ### Phone Mockup Component (Pixel 8 Pro)
 
@@ -849,4 +906,5 @@ When you present the finished work:
 | Play Store rejects upload with IMAGE_ALPHA_NOT_ALLOWED | PNG has alpha channel — run every export through `flattenToRgb()` before download |
 | Play Store rejects upload with "aspect ratio out of bounds" | `max(w,h) / min(w,h) > 2` — switch to a compliant size (e.g. 1080×1920 or 1440×2560) |
 | Feature Graphic looks empty at thumbnail size | Headline is too small or too long — keep to 5 words, headline at `W × 0.12` |
+| Feature Graphic preview cards overlap other slide cards in the grid | Preview grid hardcoded a single aspect ratio (usually 9:16 for phones) instead of driving card shape from the active device. Fix: use the `CANVAS_FOR[device]` pattern from "Aspect-Aware Grid" in Step 5, set `cols: 1` for feature-graphic, and key cards by `${device}-${i}` so React re-mounts on device change. |
 | Tablet screenshots stretched with black bars | Tablet frame aspect ratio wrong — must be `770/1000` with inner screen at 92%/94.4% |
