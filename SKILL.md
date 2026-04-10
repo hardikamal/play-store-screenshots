@@ -131,7 +131,7 @@ If tablet screenshots are localized too, mirror the same locale structure under 
 Add a `LOCALES` array and locale tabs to the toolbar. Every slide src uses `base` — no hardcoded paths:
 
 ```tsx
-const LOCALES = ["en", "de", "es"] as const; // use whatever langs were defined
+const LOCALES = ["en", "de", "ar"] as const; // use whatever langs were defined; include RTL ones if relevant
 type Locale = typeof LOCALES[number];
 
 // In ScreenshotsPage:
@@ -155,8 +155,8 @@ const base = `/screenshots/${locale}`;
 Add a small config layer so the user can switch theme and locale without rewriting slide components:
 
 ```tsx
-const LOCALES = ["en", "de", "ar"] as const;
-type Locale = typeof LOCALES[number];
+// LOCALES and Locale are declared in the Multi-language snippet above —
+// don't redeclare them here.
 
 const RTL_LOCALES = new Set<Locale>(["ar"]);
 
@@ -429,13 +429,17 @@ const SC_RY = (60 / 2080) * 100;            // border-radius y %
 ```
 
 ```tsx
+// Note: img() is the data-URI helper defined in Step 6. It returns the
+// pre-loaded base64 data URI for a path so html-to-image can serialize
+// the mockup frame deterministically. Without it, exports sometimes
+// render the phone with a missing frame.
 function Phone({ src, alt, style, className = "" }: {
   src: string; alt: string; style?: React.CSSProperties; className?: string;
 }) {
   return (
     <div className={`relative ${className}`}
       style={{ aspectRatio: `${MK_W}/${MK_H}`, ...style }}>
-      <img src="/mockup.png" alt=""
+      <img src={img("/mockup.png")} alt=""
         className="block w-full h-full" draggable={false} />
       <div className="absolute z-10 overflow-hidden"
         style={{
@@ -604,13 +608,19 @@ const IMAGE_PATHS = [
 const imageCache: Record<string, string> = {};
 
 async function preloadAllImages() {
-  await Promise.all(
+  await Promise.allSettled(
     IMAGE_PATHS.map(async (path) => {
       const resp = await fetch(path);
+      if (!resp.ok) {
+        console.warn(`preloadAllImages: ${path} returned ${resp.status}, falling back to raw path`);
+        imageCache[path] = path; // img() will return this and html-to-image may still work
+        return;
+      }
       const blob = await resp.blob();
-      const dataUrl = await new Promise<string>((resolve) => {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error(`preloadAllImages: FileReader failed for ${path}`));
         reader.readAsDataURL(blob);
       });
       imageCache[path] = dataUrl;
@@ -651,14 +661,19 @@ In every slide component, use `img()` instead of raw paths:
 ```typescript
 async function flattenToRgb(dataUrl: string, bgColor = "#ffffff"): Promise<string> {
   const img = new Image();
-  await new Promise<void>((resolve) => {
+  await new Promise<void>((resolve, reject) => {
     img.onload = () => resolve();
+    img.onerror = () => reject(new Error(`flattenToRgb: failed to load data URL`));
     img.src = dataUrl;
   });
   const canvas = document.createElement("canvas");
   canvas.width = img.width;
   canvas.height = img.height;
-  const ctx = canvas.getContext("2d")!;
+  // CRITICAL: alpha: false creates an opaque (RGB-only) canvas.
+  // Without this, toDataURL("image/png") emits an RGBA PNG even after
+  // painting an opaque background — and Play Store rejects RGBA PNGs with
+  // IMAGE_ALPHA_NOT_ALLOWED.
+  const ctx = canvas.getContext("2d", { alpha: false })!;
   ctx.fillStyle = bgColor;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(img, 0, 0);
@@ -666,7 +681,7 @@ async function flattenToRgb(dataUrl: string, bgColor = "#ffffff"): Promise<strin
 }
 ```
 
-Pass the slide's background color as `bgColor` so the flatten is invisible. The browser re-encodes the canvas without an alpha channel.
+Pass the slide's background color as `bgColor` so the flatten is invisible. The `{ alpha: false }` option tells the browser to use an opaque backing store, so `toDataURL("image/png")` emits a PNG with no alpha channel — which is what Play Store requires.
 
 ### Export Implementation
 
