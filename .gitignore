@@ -9,11 +9,22 @@ __pycache__/
 .venv/
 venv/
 
+# Python coverage
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
 # Node (end-user Next.js projects scaffolded from this skill)
 node_modules/
 .next/
 dist/
 out/
+
+# Secrets / local env
+.env
+.env.*
+!.env.example
 
 # Editor
 .vscode/
