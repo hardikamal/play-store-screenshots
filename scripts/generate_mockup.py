@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageDraw
 
 # Dimensions — locked in by SKILL.md. Do not change without updating SKILL.md.
 MK_W = 1022
