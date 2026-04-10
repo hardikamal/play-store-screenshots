@@ -1,0 +1,21 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+
+# Node (end-user Next.js projects scaffolded from this skill)
+node_modules/
+.next/
+dist/
+out/
+
+# Editor
+.vscode/
+.idea/
+*.swp
